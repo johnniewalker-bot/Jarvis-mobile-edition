@@ -41,9 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 4. GEMINI AI BRAIN
   const MODELS = [
-    'gemini-2.5-flash',
-    'gemini-2.0-flash'
-  ];
+  'gemini-3.8-flash'
+];
 
   async function callGemini(promptText) {
     if (!API_KEY) {

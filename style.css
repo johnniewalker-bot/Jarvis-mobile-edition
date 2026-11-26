@@ -41,3 +41,40 @@ button {
   background: #b8860b;
   color: #080000;
 }
+/* HORROR BOOT SCREEN */
+#boot-screen {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  color: red;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  animation: bootFade 4s forwards;
+}
+
+#boot-screen h1 {
+  color: red;
+  text-shadow: 0 0 15px red, 0 0 40px darkred;
+  letter-spacing: 5px;
+  animation: horrorPulse 1s infinite;
+}
+
+#boot-screen p {
+  color: #b8860b;
+  font-size: 10px;
+  letter-spacing: 3px;
+  margin-top: 15px;
+}
+
+@keyframes horrorPulse {
+  50% { opacity: .25; }
+}
+
+@keyframes bootFade {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}

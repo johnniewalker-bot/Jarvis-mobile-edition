@@ -1,5 +1,4 @@
 
-
 document.addEventListener('DOMContentLoaded', () => {
 
   // 1. API KEY
@@ -42,7 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 4. GEMINI AI BRAIN
   const MODELS = [
-    'gemini-3.8-flash'
+    'gemini-2.5-flash',
+    'gemini-2.0-flash'
   ];
 
   async function callGemini(promptText) {

@@ -41,3 +41,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+const boot = document.getElementById('boot-screen');
+
+if (boot) {
+  setTimeout(() => {
+    boot.remove();
+  }, 4000);
+}

@@ -44,179 +44,71 @@ document.addEventListener('DOMContentLoaded', () => {
   'gemini-3.8-flash'
 ];
 
-  async function callGemini(promptText) {
-    if (!API_KEY) {
-      throw new Error('Gemini API key is missing.');
-    }
+async function callGemini(promptText) {
+  if (!API_KEY) {
+    throw new Error('API key missing. Refresh and enter your key.');
+  }
 
-    let lastError;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
 
-    for (const model of MODELS) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              contents: [{
-                parts: [{ text: promptText }]
-              }]
-            })
-          }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          lastError = new Error(
-            data.error?.message || 'Gemini API error'
-          );
-
-          if (
-            response.status === 404 ||
-            response.status === 429 ||
-            response.status >= 500
-          ) {
-            continue;
-          }
-
-          throw lastError;
-        }
-
-        const answer =
-          data.candidates?.[0]?.content?.parts
-            ?.map(part => part.text || '')
-            .join('');
-
-        if (!answer) {
-          throw new Error('Gemini returned an empty response.');
-        }
-
-        return answer;
-
-      } catch (error) {
-        lastError = error;
+  try {
+    const response = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': API_KEY
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: promptText }]
+          }]
+        }),
+        signal: controller.signal
       }
-    }
-
-    throw lastError || new Error('All Gemini models failed.');
-  }
-
-  // 5. TEXT TO SPEECH
-  let voices = [];
-
-  function loadVoices() {
-    voices = speechSynthesis.getVoices();
-  }
-
-  loadVoices();
-  speechSynthesis.onvoiceschanged = loadVoices;
-
-  function speak(text) {
-    if (!('speechSynthesis' in window)) return;
-
-    speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.05;
-    utterance.pitch = 0.85;
-
-    const voice = voices.find(v =>
-      v.lang.startsWith('en')
     );
 
-    if (voice) utterance.voice = voice;
+    const data = await response.json();
 
-    speechSynthesis.speak(utterance);
-  }
-
-  // 6. ASK JARVIS
-  async function askGemini(promptText) {
-    const reply = add(
-      'J.A.R.V.I.S: Thinking...',
-      'ai'
-    );
-
-    try {
-      const answer = await callGemini(promptText);
-
-      reply.textContent = 'J.A.R.V.I.S: ' + answer;
-      speak(answer);
-
-    } catch (error) {
-      reply.textContent =
-        'J.A.R.V.I.S ERROR: ' + error.message;
-    }
-  }
-
-  // 7. SEND TEXT MESSAGE
-  function sendMessage() {
-    const text = input.value.trim();
-
-    if (!text) return;
-
-    add('YOU: ' + text, 'user');
-    input.value = '';
-
-    askGemini(text);
-  }
-
-  send.addEventListener('click', sendMessage);
-
-  input.addEventListener('keydown', event => {
-    if (event.key === 'Enter') {
-      sendMessage();
-    }
-  });
-
-  // 8. SPEECH RECOGNITION
-  const SpeechRecognition =
-    window.SpeechRecognition ||
-    window.webkitSpeechRecognition;
-
-  if (micBtn && SpeechRecognition) {
-    const recognition = new SpeechRecognition();
-
-    recognition.lang = 'en-IN';
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    micBtn.addEventListener('click', () => {
-      try {
-        recognition.start();
-        micBtn.textContent = '🔴';
-      } catch (error) {
-        console.log(error);
-      }
-    });
-
-    recognition.onresult = event => {
-      const spokenText =
-        event.results[0][0].transcript;
-
-      add('YOU: ' + spokenText, 'user');
-      askGemini(spokenText);
-    };
-
-    recognition.onend = () => {
-      micBtn.textContent = '🎙️';
-    };
-
-    recognition.onerror = event => {
-      micBtn.textContent = '🎙️';
-      add(
-        'J.A.R.V.I.S: Microphone error - ' + event.error,
-        'ai'
+    if (!response.ok) {
+      throw new Error(
+        data.error?.message || 'API error: ' + response.status
       );
-    };
+    }
 
-  } else if (micBtn) {
-    micBtn.addEventListener('click', () => {
-      alert('Voice recognition is not supported. Try Chrome.');
-    });
+    const answer = data.candidates?.[0]?.content?.parts
+      ?.map(part => part.text || '')
+      .join('');
+
+    if (!answer) {
+      throw new Error('Gemini returned no text. Check API response.');
+    }
+
+    return answer;
+
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out. Check your internet.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
+}
 
-});
+async function askGemini(promptText) {
+  const reply = add('J.A.R.V.I.S: Thinking...', 'ai');
+
+  try {
+    const answer = await callGemini(promptText);
+    reply.textContent = 'J.A.R.V.I.S: ' + answer;
+    speak(answer);
+
+  } catch (error) {
+    reply.textContent = 'J.A.R.V.I.S ERROR: ' + error.message;
+    console.error('Gemini error:', error);
+  }
+}
+

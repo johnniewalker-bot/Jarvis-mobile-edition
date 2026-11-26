@@ -1,2 +1,2 @@
 # Jarvis-mobile-edition
-my hair ai assistant 
+my Jarvis ai assistant 

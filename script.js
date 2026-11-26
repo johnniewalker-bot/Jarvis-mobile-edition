@@ -41,38 +41,183 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 4. GEMINI AI BRAIN
   const MODELS = [
-  'gemini-3.8-flash'
-];
+    'gemini-2.5-flash',
+    'gemini-2.0-flash'
+  ];
 
-async function askGemini(promptText) {
-  const reply = add('J.A.R.V.I.S: Thinking...', 'ai');
+  async function callGemini(promptText) {
+    if (!API_KEY) {
+      throw new Error('Gemini API key is missing.');
+    }
 
-  const delays = [2000, 4000, 8000];
+    let lastError;
 
-  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    for (const model of MODELS) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{ text: promptText }]
+              }]
+            })
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          lastError = new Error(
+            data.error?.message || 'Gemini API error'
+          );
+
+          if (
+            response.status === 404 ||
+            response.status === 429 ||
+            response.status >= 500
+          ) {
+            continue;
+          }
+
+          throw lastError;
+        }
+
+        const answer =
+          data.candidates?.[0]?.content?.parts
+            ?.map(part => part.text || '')
+            .join('');
+
+        if (!answer) {
+          throw new Error('Gemini returned an empty response.');
+        }
+
+        return answer;
+
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError || new Error('All Gemini models failed.');
+  }
+
+  // 5. TEXT TO SPEECH
+  let voices = [];
+
+  function loadVoices() {
+    voices = speechSynthesis.getVoices();
+  }
+
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+
+  function speak(text) {
+    if (!('speechSynthesis' in window)) return;
+
+    speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.05;
+    utterance.pitch = 0.85;
+
+    const voice = voices.find(v =>
+      v.lang.startsWith('en')
+    );
+
+    if (voice) utterance.voice = voice;
+
+    speechSynthesis.speak(utterance);
+  }
+
+  // 6. ASK JARVIS
+  async function askGemini(promptText) {
+    const reply = add(
+      'J.A.R.V.I.S: Thinking...',
+      'ai'
+    );
+
     try {
       const answer = await callGemini(promptText);
 
       reply.textContent = 'J.A.R.V.I.S: ' + answer;
       speak(answer);
-      return;
 
     } catch (error) {
-      const temporary =
-        /high demand|UNAVAILABLE|503|overloaded/i.test(error.message);
-
-      if (!temporary || attempt === delays.length) {
-        reply.textContent =
-          'J.A.R.V.I.S ERROR: ' + error.message;
-        return;
-      }
-
       reply.textContent =
-        'J.A.R.V.I.S: Servers busy. Retrying...';
-
-      await new Promise(resolve =>
-        setTimeout(resolve, delays[attempt])
-      );
+        'J.A.R.V.I.S ERROR: ' + error.message;
     }
   }
-}
+
+  // 7. SEND TEXT MESSAGE
+  function sendMessage() {
+    const text = input.value.trim();
+
+    if (!text) return;
+
+    add('YOU: ' + text, 'user');
+    input.value = '';
+
+    askGemini(text);
+  }
+
+  send.addEventListener('click', sendMessage);
+
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      sendMessage();
+    }
+  });
+
+  // 8. SPEECH RECOGNITION
+  const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+  if (micBtn && SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+
+    recognition.lang = 'en-IN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    micBtn.addEventListener('click', () => {
+      try {
+        recognition.start();
+        micBtn.textContent = '🔴';
+      } catch (error) {
+        console.log(error);
+      }
+    });
+
+    recognition.onresult = event => {
+      const spokenText =
+        event.results[0][0].transcript;
+
+      add('YOU: ' + spokenText, 'user');
+      askGemini(spokenText);
+    };
+
+    recognition.onend = () => {
+      micBtn.textContent = '🎙️';
+    };
+
+    recognition.onerror = event => {
+      micBtn.textContent = '🎙️';
+      add(
+        'J.A.R.V.I.S: Microphone error - ' + event.error,
+        'ai'
+      );
+    };
+
+  } else if (micBtn) {
+    micBtn.addEventListener('click', () => {
+      alert('Voice recognition is not supported. Try Chrome.');
+    });
+  }
+
+});

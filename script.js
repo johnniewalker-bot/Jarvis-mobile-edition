@@ -44,71 +44,35 @@ document.addEventListener('DOMContentLoaded', () => {
   'gemini-3.8-flash'
 ];
 
-async function callGemini(promptText) {
-  if (!API_KEY) {
-    throw new Error('API key missing. Refresh and enter your key.');
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
-
-  try {
-    const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': API_KEY
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: promptText }]
-          }]
-        }),
-        signal: controller.signal
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error?.message || 'API error: ' + response.status
-      );
-    }
-
-    const answer = data.candidates?.[0]?.content?.parts
-      ?.map(part => part.text || '')
-      .join('');
-
-    if (!answer) {
-      throw new Error('Gemini returned no text. Check API response.');
-    }
-
-    return answer;
-
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error('Request timed out. Check your internet.');
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 async function askGemini(promptText) {
   const reply = add('J.A.R.V.I.S: Thinking...', 'ai');
 
-  try {
-    const answer = await callGemini(promptText);
-    reply.textContent = 'J.A.R.V.I.S: ' + answer;
-    speak(answer);
+  const delays = [2000, 4000, 8000];
 
-  } catch (error) {
-    reply.textContent = 'J.A.R.V.I.S ERROR: ' + error.message;
-    console.error('Gemini error:', error);
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      const answer = await callGemini(promptText);
+
+      reply.textContent = 'J.A.R.V.I.S: ' + answer;
+      speak(answer);
+      return;
+
+    } catch (error) {
+      const temporary =
+        /high demand|UNAVAILABLE|503|overloaded/i.test(error.message);
+
+      if (!temporary || attempt === delays.length) {
+        reply.textContent =
+          'J.A.R.V.I.S ERROR: ' + error.message;
+        return;
+      }
+
+      reply.textContent =
+        'J.A.R.V.I.S: Servers busy. Retrying...';
+
+      await new Promise(resolve =>
+        setTimeout(resolve, delays[attempt])
+      );
+    }
   }
 }
-
